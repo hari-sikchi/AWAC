@@ -1,6 +1,7 @@
 # AWAC
 
-Advantage weighted Actor Critic for Offline RL
+Advantage weighted Actor Critic for Offline RL    
+
 A cleaner implementation for AWAC built on top of [spinning_up](https://github.com/openai/spinningup) SAC, and [rlkit](https://github.com/vitchyr/rlkit/tree/master/examples/awac).
 
 ## Running the code
