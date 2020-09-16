@@ -6,8 +6,7 @@ import gym
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    # Policy name (TD3, DDPG or OurDDPG)
-    parser.add_argument("--algorithm", default="SAC")
+    parser.add_argument("--algorithm", default="AWAC")
     parser.add_argument("--env", default="hopper-random-v0")
     parser.add_argument("--exp_name", default="data/dump")
     parser.add_argument("--num_expert_trajs", default=5, type=int)
