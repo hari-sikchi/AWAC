@@ -2,3 +2,7 @@ __pycache__/*
 data/*
 */__pycache__/*
 .idea/
+awac_data/ant_*
+awac_data/hc_*
+awac_data/walker_*
+awac_data/*.zip

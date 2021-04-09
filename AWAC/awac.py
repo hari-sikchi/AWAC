@@ -10,6 +10,8 @@ import core as core
 from utils.logx import EpochLogger
 import torch.nn.functional as F
 import os
+import warnings
+from termcolor import colored
 
 device = torch.device("cpu")
 
@@ -50,11 +52,26 @@ class ReplayBuffer:
 
 class AWAC:
 
-    def __init__(self, env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
-                 steps_per_epoch=100, epochs=10000, replay_size=int(2000000), gamma=0.99,
-                 polyak=0.995, lr=3e-4, p_lr=3e-4, alpha=0.0, batch_size=1024, start_steps=10000,
-                 update_after=1000, update_every=50, num_test_episodes=10, max_ep_len=1000,
-                 logger_kwargs=dict(), save_freq=1, algo='SAC'):
+    def __init__(self, env_fn, actor_critic=core.MLPActorCritic,
+                 ac_kwargs=dict(),
+                 seed=0,
+                 steps_per_epoch=100,
+                 epochs=10000,
+                 replay_size=int(2000000),
+                 gamma=0.99,
+                 polyak=0.995,
+                 lr=3e-4,
+                 p_lr=3e-4,
+                 alpha=0.0,
+                 batch_size=1024,
+                 start_steps=10000,
+                 update_after=0,
+                 update_every=50,
+                 num_test_episodes=10,
+                 max_ep_len=1000,
+                 logger_kwargs=dict(),
+                 save_freq=1,
+                 algo='SAC'):
         """
         Soft Actor-Critic (SAC)
 
@@ -226,7 +243,9 @@ class AWAC:
         if env_name in data_envs:
             print('Loading saved data')
             for file in data_envs[env_name]:
-                assert os.path.exists(file), 'Data not found follow awac_data/instructions.txt to download'
+                if not os.path.exists(file):
+                    warnings.warn(colored('Offline data not found. Follow awac_data/instructions.txt to download. Running without offline data.', 'red'))
+                    break
                 data = np.load(file, allow_pickle=True)
                 for demo in data:
                     for transition in list(zip(demo['observations'], demo['actions'], demo['rewards'],
