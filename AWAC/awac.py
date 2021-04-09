@@ -9,9 +9,10 @@ import time
 import core as core
 from utils.logx import EpochLogger
 import torch.nn.functional as F
-
+import os
 
 device = torch.device("cpu")
+
 
 class ReplayBuffer:
     """
@@ -32,8 +33,8 @@ class ReplayBuffer:
         self.act_buf[self.ptr] = act
         self.rew_buf[self.ptr] = rew
         self.done_buf[self.ptr] = done
-        self.ptr = (self.ptr+1) % self.max_size
-        self.size = min(self.size+1, self.max_size)
+        self.ptr = (self.ptr + 1) % self.max_size
+        self.size = min(self.size + 1, self.max_size)
 
     def sample_batch(self, batch_size=32, idxs=None):
         if idxs is None:
@@ -44,17 +45,16 @@ class ReplayBuffer:
                      act=self.act_buf[idxs],
                      rew=self.rew_buf[idxs],
                      done=self.done_buf[idxs])
-        return {k: torch.as_tensor(v, dtype=torch.float32) for k,v in batch.items()}
-
+        return {k: torch.as_tensor(v, dtype=torch.float32) for k, v in batch.items()}
 
 
 class AWAC:
 
-    def __init__(self, env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
-        steps_per_epoch=100, epochs=10000, replay_size=int(2000000), gamma=0.99, 
-        polyak=0.995, lr=3e-4, p_lr=3e-4, alpha=0.0, batch_size=1024, start_steps=10000, 
-        update_after=1000, update_every=50, num_test_episodes=10, max_ep_len=1000, 
-        logger_kwargs=dict(), save_freq=1, algo='SAC'):
+    def __init__(self, env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
+                 steps_per_epoch=100, epochs=10000, replay_size=int(2000000), gamma=0.99,
+                 polyak=0.995, lr=3e-4, p_lr=3e-4, alpha=0.0, batch_size=1024, start_steps=10000,
+                 update_after=1000, update_every=50, num_test_episodes=10, max_ep_len=1000,
+                 logger_kwargs=dict(), save_freq=1, algo='SAC'):
         """
         Soft Actor-Critic (SAC)
 
@@ -166,24 +166,28 @@ class AWAC:
         self.act_limit = self.env.action_space.high[0]
 
         # Create actor-critic module and target networks
-        self.ac = actor_critic(self.env.observation_space, self.env.action_space, special_policy='awac', **ac_kwargs)
-        self.ac_targ = deepcopy(self.ac)
-        self.gamma  = gamma
-
+        self.ac = actor_critic(self.env.observation_space, self.env.action_space,
+                               special_policy='awac', **ac_kwargs)
+        self.ac_targ = actor_critic(self.env.observation_space, self.env.action_space,
+                                    special_policy='awac', **ac_kwargs)
+        self.ac_targ.load_state_dict(self.ac.state_dict())
+        self.gamma = gamma
 
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
         for p in self.ac_targ.parameters():
             p.requires_grad = False
-            
+
         # List of parameters for both Q-networks (save this for convenience)
         self.q_params = itertools.chain(self.ac.q1.parameters(), self.ac.q2.parameters())
 
         # Experience buffer
-        self.replay_buffer = ReplayBuffer(obs_dim=self.obs_dim, act_dim=self.act_dim, size=replay_size)
+        self.replay_buffer = ReplayBuffer(obs_dim=self.obs_dim, act_dim=self.act_dim,
+                                          size=replay_size)
 
         # Count variables (protip: try to get a feel for how different size networks behave!)
-        var_counts = tuple(core.count_vars(module) for module in [self.ac.pi, self.ac.q1, self.ac.q2])
-        self.logger.log('\nNumber of parameters: \t pi: %d, \t q1: %d, \t q2: %d\n'%var_counts)
+        var_counts = tuple(
+            core.count_vars(module) for module in [self.ac.pi, self.ac.q1, self.ac.q2])
+        self.logger.log('\nNumber of parameters: \t pi: %d, \t q1: %d, \t q2: %d\n' % var_counts)
         self.algo = algo
 
         self.p_lr = p_lr
@@ -196,7 +200,7 @@ class AWAC:
         self.q_optimizer = Adam(self.q_params, lr=self.lr)
         self.num_test_episodes = num_test_episodes
         self.max_ep_len = max_ep_len
-        self.epochs= epochs
+        self.epochs = epochs
         self.steps_per_epoch = steps_per_epoch
         self.update_after = update_after
         self.update_every = update_every
@@ -207,21 +211,42 @@ class AWAC:
         self.logger.setup_pytorch_saver(self.ac)
         print("Running Offline RL algorithm: {}".format(self.algo))
 
+    def populate_replay_buffer(self, env_name):
+        data_envs = {
+            'HalfCheetah-v2': (
+                "awac_data/hc_action_noise_15.npy",
+                "awac_data/hc_off_policy_15_demos_100.npy"),
+            'Ant-v2': (
+                "awac_data/ant_action_noise_15.npy",
+                "awac_data/ant_off_policy_15_demos_100.npy"),
+            'Walker2d-v2': (
+                "awac_data/walker_action_noise_15.npy",
+                "awac_data/walker_off_policy_15_demos_100.npy"),
+        }
+        if env_name in data_envs:
+            print('Loading saved data')
+            for file in data_envs[env_name]:
+                assert os.path.exists(file), 'Data not found follow awac_data/instructions.txt to download'
+                data = np.load(file, allow_pickle=True)
+                for demo in data:
+                    for transition in list(zip(demo['observations'], demo['actions'], demo['rewards'],
+                                               demo['next_observations'], demo['terminals'])):
+                        self.replay_buffer.store(*transition)
+        else:
+            dataset = d4rl.qlearning_dataset(self.env)
+            N = dataset['rewards'].shape[0]
+            for i in range(N):
+                self.replay_buffer.store(dataset['observations'][i], dataset['actions'][i],
+                                         dataset['rewards'][i], dataset['next_observations'][i],
+                                         float(dataset['terminals'][i]))
+            print("Loaded dataset")
 
-    def populate_replay_buffer(self):
-        dataset = d4rl.qlearning_dataset(self.env)
-        N = dataset['rewards'].shape[0]
-        for i in range(N):
-            self.replay_buffer.store(dataset['observations'][i],dataset['actions'][i],dataset['rewards'][i],dataset['next_observations'][i],float(dataset['terminals'][i]))
-        print("Loaded dataset")
-        
-    
     # Set up function for computing SAC Q-losses
     def compute_loss_q(self, data):
         o, a, r, o2, d = data['obs'], data['act'], data['rew'], data['obs2'], data['done']
 
-        q1 = self.ac.q1(o,a)
-        q2 = self.ac.q2(o,a)
+        q1 = self.ac.q1(o, a)
+        q2 = self.ac.q2(o, a)
 
         # Bellman backup for Q functions
         with torch.no_grad():
@@ -235,8 +260,8 @@ class AWAC:
             backup = r + self.gamma * (1 - d) * (q_pi_targ - self.alpha * logp_a2)
 
         # MSE loss against Bellman backup
-        loss_q1 = ((q1 - backup)**2).mean()
-        loss_q2 = ((q2 - backup)**2).mean()
+        loss_q1 = ((q1 - backup) ** 2).mean()
+        loss_q2 = ((q2 - backup) ** 2).mean()
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
@@ -246,7 +271,7 @@ class AWAC:
         return loss_q, q_info
 
     # Set up function for computing SAC pi loss
-    def compute_loss_pi(self,data):
+    def compute_loss_pi(self, data):
         o = data['obs']
 
         pi, logp_pi = self.ac.pi(o)
@@ -262,15 +287,14 @@ class AWAC:
         adv_pi = q_old_actions - v_pi
         weights = F.softmax(adv_pi / beta, dim=0)
         policy_logpp = self.ac.pi.get_logprob(o, data['act'])
-        loss_pi = (-policy_logpp * len(weights)*weights.detach()).mean()
+        loss_pi = (-policy_logpp * len(weights) * weights.detach()).mean()
 
         # Useful info for logging
         pi_info = dict(LogPi=policy_logpp.detach().numpy())
 
         return loss_pi, pi_info
 
-
-    def update(self,data, update_timestep):
+    def update(self, data, update_timestep):
         # First run one gradient descent step for Q1 and Q2
         self.q_optimizer.zero_grad()
         loss_q, q_info = self.compute_loss_q(data)
@@ -279,7 +303,7 @@ class AWAC:
 
         # Record things
         self.logger.store(LossQ=loss_q.item(), **q_info)
-        # Freeze Q-networks so you don't waste computational effort 
+        # Freeze Q-networks so you don't waste computational effort
         # computing gradients for them during the policy learning step.
         for p in self.q_params:
             p.requires_grad = False
@@ -306,37 +330,54 @@ class AWAC:
                 p_targ.data.add_((1 - self.polyak) * p.data)
 
     def get_action(self, o, deterministic=False):
-        return self.ac.act(torch.as_tensor(o, dtype=torch.float32), 
-                      deterministic)
+        return self.ac.act(torch.as_tensor(o, dtype=torch.float32), deterministic)
 
     def test_agent(self):
         for j in range(self.num_test_episodes):
             o, d, ep_ret, ep_len = self.test_env.reset(), False, 0, 0
-            while not(d or (ep_len == self.max_ep_len)):
-                # Take deterministic actions at test time 
+            while not (d or (ep_len == self.max_ep_len)):
+                # Take deterministic actions at test time
                 o, r, d, _ = self.test_env.step(self.get_action(o, True))
                 ep_ret += r
                 ep_len += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)  # Get unnormalized score
-           
+
             # self.logger.store(TestEpRet=100*self.test_env.get_normalized_score(ep_ret), TestEpLen=ep_len)  # Get normalized score
 
     def run(self):
-       # Prepare for interaction with environment
+        # Prepare for interaction with environment
         total_steps = self.epochs * self.steps_per_epoch
         start_time = time.time()
-        o, ep_ret, ep_len = self.env.reset(), 0, 0
+        obs, ep_ret, ep_len = self.env.reset(), 0, 0
+        done = True
+        num_train_episodes = 0
 
         # Main loop: collect experience in env and update/log each epoch
         for t in range(total_steps):
 
-            # # Update handling
-            batch = self.replay_buffer.sample_batch(self.batch_size)
-            self.update(data=batch, update_timestep = t)
+            # Reset stuff if necessary
+            if done and t > 0:
+                self.logger.store(ExplEpRet=ep_ret, ExplEpLen=ep_len)
+
+                obs, ep_ret, ep_len = self.env.reset(), 0, 0
+                num_train_episodes += 1
+
+            # Collect experience
+            act = self.get_action(obs, deterministic=False)
+            next_obs, rew, done, info = self.env.step(act)
+
+            self.replay_buffer.store(obs, act, rew, next_obs, done)
+            obs = next_obs
+
+            # Update handling
+            if t > self.update_after and t % self.update_every == 0:
+                for _ in range(self.update_every):
+                    batch = self.replay_buffer.sample_batch(self.batch_size)
+                    self.update(data=batch, update_timestep=t)
 
             # End of epoch handling
-            if (t+1) % self.steps_per_epoch == 0:
-                epoch = (t+1) // self.steps_per_epoch
+            if (t + 1) % self.steps_per_epoch == 0:
+                epoch = (t + 1) // self.steps_per_epoch
 
                 # Save model
                 if (epoch % self.save_freq == 0) or (epoch == self.epochs):
@@ -355,7 +396,7 @@ class AWAC:
                 self.logger.log_tabular('LogPi', with_min_and_max=True)
                 self.logger.log_tabular('LossPi', average_only=True)
                 self.logger.log_tabular('LossQ', average_only=True)
-                self.logger.log_tabular('Time', time.time()-start_time)
+                self.logger.log_tabular('Time', time.time() - start_time)
                 self.logger.dump_tabular()
 
 

@@ -12,15 +12,14 @@ if __name__ == "__main__":
     parser.add_argument("--num_expert_trajs", default=5, type=int)
     parser.add_argument("--seed", default=0, type=int)
     args = parser.parse_args()
-    env_fn = lambda:gym.make(args.env)
-
+    env_fn = lambda: gym.make(args.env)
 
     if 'AWAC' in args.algorithm:
         agent = AWAC(env_fn, logger_kwargs={'output_dir':args.exp_name+'_s'+str(args.seed), 'exp_name':args.exp_name}, batch_size=1024,  seed=args.seed, algo=args.algorithm)
     else:
         raise NotImplementedError
 
-    agent.populate_replay_buffer()
+    agent.populate_replay_buffer(args.env)
     agent.run()
 
 
