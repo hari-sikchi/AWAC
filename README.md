@@ -21,6 +21,11 @@ The plotting script will plot all the subfolders inside the given folder. The va
 * AverageTestEpRet
 
 
+## Results
+Environment: Ant-v2 
+Dataset: https://drive.google.com/file/d/1edcuicVv2d-PqH1aZUVbO5CeRq3lqK89/view
+Plot [Compare to Figure 5 of the official paper]: 
+![image](https://user-images.githubusercontent.com/16147295/114596611-77e98500-9cad-11eb-8e6f-1c1b9a0b965f.png)
 
 
 ## References
