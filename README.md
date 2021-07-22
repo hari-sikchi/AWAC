@@ -1,17 +1,23 @@
 # pytorch-AWAC
 
-Advantage weighted Actor Critic for Offline RL    
+Advantage weighted Actor Critic for Offline RL implemented in pytorch.
 
 A cleaner implementation for AWAC built on top of [spinning_up](https://github.com/openai/spinningup) SAC, and [rlkit](https://github.com/vitchyr/rlkit/tree/master/examples/awac).
 
 
 If you use this code in your research project please cite us as:
 ```
-@article{harshit sikchi_albert wilcox_2021, title={hari-sikchi/AWAC: AWAC implementation in pytorch}, 
-DOI={10.5281/zenodo.5121023}, 
-abstractNote={<p>Contains code for AWAC training on offline RL datasets 
-as well as fine-tuning for Online RL with Offline datasets.</p>}, publisher={Zenodo},
-author={Harshit Sikchi and Albert Wilcox}, year={2021}, month={Jul}}
+@software{harshit_sikchi_2021_5121023,
+  author       = {Harshit Sikchi and
+                  Albert Wilcox},
+  title        = {hari-sikchi/AWAC:  AWAC implementation in pytorch},
+  month        = jul,
+  year         = 2021,
+  publisher    = {Zenodo},
+  version      = {v1.0.0},
+  doi          = {10.5281/zenodo.5121023},
+  url          = {https://doi.org/10.5281/zenodo.5121023}
+}
 ```
 
 
