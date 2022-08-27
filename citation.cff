@@ -9,6 +9,7 @@ authors:
     family-names: Wilcox
     given-names: Albert
 cff-version: "1.1.0"
+doi: 10.5281/zenodo.5121023
 message: "If you use this software, please cite it using these metadata."
 repository-code: "https://github.com/hari-sikchi/AWAC"
 title: "pytorch-AWAC"
