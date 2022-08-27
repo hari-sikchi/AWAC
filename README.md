@@ -7,8 +7,9 @@ A cleaner implementation for AWAC built on top of [spinning_up](https://github.c
 
 If you use this code in your research project please cite us as:
 ```
-@misc{Sikchi_pytorchAWAC,
+@software{Sikchi_pytorch-AWAC,
 author = {Sikchi, Harshit and Wilcox, Albert},
+doi = {10.5281/zenodo.5121023},
 title = {{pytorch-AWAC}},
 url = {https://github.com/hari-sikchi/AWAC}
 }
